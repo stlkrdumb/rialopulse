@@ -25,6 +25,9 @@
     "react-dom": "19.2.3",
     "tailwind-merge": "^3.4.0"
   },
+  "overrides": {
+    "bigint-buffer": "npm:@gsknnft/bigint-buffer@^1.4.3"
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "eslint": "^9",
