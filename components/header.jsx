@@ -1,0 +1,22 @@
+'use client';
+
+import { UnifiedWalletButton } from '@jup-ag/wallet-adapter';
+import ThemeToggle from './theme-toggle';
+import Image from 'next/image';
+
+export default function Header() {
+    return (
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+            <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Image src="/logo.svg" alt="Rialo Pulse" width={128} height={48} />
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <ThemeToggle />
+                    <UnifiedWalletButton />
+                </div>
+            </div>
+        </header>
+    );
+}
