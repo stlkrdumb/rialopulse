@@ -265,8 +265,33 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
         return bet.account.direction === account.outcome;
     });
 
+    // Check if user won or lost any bet on this market
+    const userResult = (() => {
+        if (!account.resolved) return null;
+        if (userBets.length === 0) return null; // Didn't participate
+
+        // Did they win?
+        const won = userBets.some(bet => bet.account.direction === account.outcome);
+        return won ? 'WON' : 'LOST';
+    })();
+
     return (
-        <Card className="bg-custom-card border-custom-card border hover:border-primary/50 transition-colors backdrop-blur-sm">
+        <Card className={`relative overflow-hidden bg-custom-card border-custom-card border hover:border-primary/50 transition-colors backdrop-blur-sm ${userResult === 'WON' ? 'border-outcome-yes/50 shadow-[0_0_15px_rgba(53,125,119,0.2)]' : ''}`}>
+
+            {/* Status Stamp Overlay */}
+            {userResult && (
+                <div className="absolute top-4 right-12 z-10 pointer-events-none select-none">
+                    <div className={`
+                         transform rotate-12 border-4 rounded-lg px-2 py-1 font-black text-2xl tracking-widest opacity-80
+                         ${userResult === 'WON'
+                            ? 'border-outcome-yes text-outcome-yes shadow-[0_0_10px_rgba(53,125,119,0.5)] bg-outcome-yes/10'
+                            : 'border-outcome-no text-outcome-no shadow-[0_0_10px_rgba(145,42,45,0.5)] bg-outcome-no/10'}
+                     `}>
+                        {userResult === 'WON' ? 'YOU WON' : 'YOU LOST'}
+                    </div>
+                </div>
+            )}
+
             <CardHeader className="pb-3 border-b border-white/5">
                 <div className="space-y-1">
                     <CardTitle className="text-base">{account.question}</CardTitle>
