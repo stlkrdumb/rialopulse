@@ -91,7 +91,7 @@ export default function PriceTicker() {
     };
 
     return (
-        <div className="bg-black/40 border-b border-white/5 overflow-hidden backdrop-blur-sm relative z-50">
+        <div className="bg-black/40 border-b border-primary overflow-hidden backdrop-blur-sm relative z-50">
             {/* Gradient masks for smooth fade edges */}
             <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
             <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />

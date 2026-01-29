@@ -8,7 +8,7 @@ import { ConnectionProvider } from '@solana/wallet-adapter-react';
 
 export default function SolanaProvider({ children }) {
     // Use devnet for development
-    const endpoint = 'https://api.devnet.solana.com';
+    const endpoint = `https://devnet.helius-rpc.com/?api-key=${process.env.NEXT_PUBLIC_HELIUS_API_KEY}`;
 
     // Create RPC client using @solana/kit
     const rpc = useMemo(() => createSolanaRpc(endpoint), [endpoint]);

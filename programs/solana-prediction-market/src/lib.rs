@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
-declare_id!("6kdWRDeTupf2DK3A8p1JRjh6adpFStzLZjBany25GY97");
+declare_id!("a1fq1EhzvH6dPwDgcaRwAzo6BF5NgMWR27SUAyFzqPX");
 
 #[program]
 pub mod solana_prediction_market {
@@ -16,6 +16,7 @@ pub mod solana_prediction_market {
         initial_price: i64,
         price_conf: u64,
         target_price: i64,
+        inverted: bool,
     ) -> Result<()> {
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
@@ -33,6 +34,7 @@ pub mod solana_prediction_market {
         market.start_price = initial_price;
         market.price_conf = price_conf;
         market.target_price = target_price;
+        market.inverted = inverted;
         
         market.start_time = clock.unix_timestamp;
         market.end_time = clock.unix_timestamp + duration;
@@ -43,7 +45,7 @@ pub mod solana_prediction_market {
         market.outcome = None;
         market.vault_bump = ctx.bumps.vault;
         
-        msg!("Market initialized for {}. Start Price: {} (±{})", market.asset_symbol, market.start_price, market.price_conf);
+        msg!("Market initialized for {}. Start Price: {} (±{}) Inverted: {}", market.asset_symbol, market.start_price, market.price_conf, inverted);
         Ok(())
     }
 
@@ -96,8 +98,14 @@ pub mod solana_prediction_market {
         // In production, we would deserialize Pyth account on-chain
         let end_price = final_price;
         
-        // Outcome logic: YES if End Price >= Target Price
-        let outcome = end_price >= market.target_price;
+        // Outcome logic: 
+        // Normal: YES if End Price >= Target Price
+        // Inverted: YES if End Price < Target Price
+        let outcome = if market.inverted {
+            end_price < market.target_price
+        } else {
+            end_price >= market.target_price
+        };
         
         market.outcome = Some(outcome);
         market.resolved = true;
@@ -150,9 +158,9 @@ pub mod solana_prediction_market {
 }
 
 #[derive(Accounts)]
-#[instruction(question: String, asset: String, duration: i64, feed_id: [u8; 32], initial_price: i64, price_conf: u64, target_price: i64)] 
+#[instruction(question: String, asset: String, duration: i64, feed_id: [u8; 32], initial_price: i64, price_conf: u64, target_price: i64, inverted: bool)] 
 pub struct InitializeMarket<'info> {
-    #[account(init, payer = user, space = 8 + 32 + (4 + 200) + (4 + 10) + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 1 + 2 + 1 + 50)]
+    #[account(init, payer = user, space = 8 + 32 + (4 + 200) + (4 + 10) + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 1 + 2 + 1 + 50 + 1)]
     pub market: Account<'info, Market>,
     
     /// Pyth price update account (owned by Pyth program)
@@ -229,6 +237,7 @@ pub struct Market {
     pub resolved: bool,
     pub outcome: Option<bool>,
     pub vault_bump: u8,
+    pub inverted: bool,
 }
 
 #[account]

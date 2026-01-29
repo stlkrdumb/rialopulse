@@ -167,8 +167,11 @@ export default function AdminControls({ onMarketCreated }) {
             console.log('Initial Price:', initialPrice.toString());
             console.log('Target Price:', targetPriceBn.toString());
 
+            const inverted = targetPriceBn.lt(initialPrice);
+            console.log('Inverted Market:', inverted);
+
             await program.methods
-                .initializeMarket(question, asset, new BN(durationSeconds), feedIdArray, initialPrice, priceConf, targetPriceBn)
+                .initializeMarket(question, asset, new BN(durationSeconds), feedIdArray, initialPrice, priceConf, targetPriceBn, inverted)
                 .accounts({
                     market: marketKeypair.publicKey,
                     priceUpdate: priceUpdateAccount,

@@ -1,5 +1,5 @@
 {
-  "address": "6kdWRDeTupf2DK3A8p1JRjh6adpFStzLZjBany25GY97",
+  "address": "a1fq1EhzvH6dPwDgcaRwAzo6BF5NgMWR27SUAyFzqPX",
   "metadata": {
     "name": "solana_prediction_market",
     "version": "0.1.0",
@@ -157,6 +157,10 @@
         {
           "name": "target_price",
           "type": "i64"
+        },
+        {
+          "name": "inverted",
+          "type": "bool"
         }
       ]
     },
@@ -422,6 +426,10 @@
           {
             "name": "vault_bump",
             "type": "u8"
+          },
+          {
+            "name": "inverted",
+            "type": "bool"
           }
         ]
       }

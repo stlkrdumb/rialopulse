@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-solana_prediction_market = "6kdWRDeTupf2DK3A8p1JRjh6adpFStzLZjBany25GY97"
+solana_prediction_market = "a1fq1EhzvH6dPwDgcaRwAzo6BF5NgMWR27SUAyFzqPX"
 
 [programs.localnet]
 solana_prediction_market = "D8dLqpXX7jNwDrJrBpSE1FcPRjnuiKWB5JNT4qbsjV95"

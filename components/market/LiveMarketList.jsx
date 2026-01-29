@@ -174,8 +174,13 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
     }, [account.endTime]);
 
     const formatTime = (seconds) => {
-        const m = Math.floor(seconds / 60);
+        const d = Math.floor(seconds / (3600 * 24));
+        const h = Math.floor((seconds % (3600 * 24)) / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
         const s = Math.floor(seconds % 60);
+
+        if (d > 0) return `${d}d ${h}h`;
+        if (h > 0) return `${h}h ${m}m`;
         return `${m}m ${s}s`;
     };
 
@@ -285,7 +290,7 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                          transform rotate-12 border-4 rounded-lg px-2 py-1 font-black text-2xl tracking-widest opacity-80
                          ${userResult === 'WON'
                             ? 'border-outcome-yes text-outcome-yes shadow-[0_0_10px_rgba(53,125,119,0.5)] bg-outcome-yes/10'
-                            : 'border-outcome-no text-outcome-no shadow-[0_0_10px_rgba(145,42,45,0.5)] bg-outcome-no/10'}
+                            : 'border-outcome-no text-outcome-no shadow-[0_0_10px_rgba(221,83,65,0.5)] bg-outcome-no/10'}
                      `}>
                         {userResult === 'WON' ? 'YOU WON' : 'YOU LOST'}
                     </div>
@@ -297,22 +302,32 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                     <CardTitle className="text-base">{account.question}</CardTitle>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span className="text-xs text-muted-foreground px-0 py-0.5 rounded">{account.assetSymbol}/USD</span>
-                        <span className={`px-2 py-0.5 rounded font-bold ${account.resolved ? "bg-gray-800 text-gray-400" : "bg-green-900 text-green-400"}`}>
+                        <span className={`px-2 py-0.5 rounded font-bold ${account.resolved ? "bg-gray-800 text-gray-400" : "bg-outcome-yes/20 text-outcome-yes"}`}>
                             {account.resolved ? (account.outcome ? "YES WON" : "NO WON") : "LIVE"}
                         </span>
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="flex justify-between mb-4 text-sm">
+                <div className="grid grid-cols-3 gap-2 mb-4 text-sm">
                     <div>
-                        <p className="text-muted-foreground">Start Price</p>
-                        <p className="font-mono">${(account.startPrice.toNumber() / 1e8).toFixed(2)}</p>
+                        <p className="text-muted-foreground text-xs">Start Price</p>
+                        <p className="font-mono font-bold">${(account.startPrice.toNumber() / 1e8).toFixed(2)}</p>
+                    </div>
+                    <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Time Left</p>
+                        <p className={`font-mono font-bold ${isEnded ? 'text-outcome-no' : 'text-blue-400'}`}>
+                            {isEnded ? "Ended" : formatTime(timeLeft)}
+                        </p>
                     </div>
                     <div className="text-right">
-                        <p className="text-muted-foreground">Time Left</p>
-                        <p className={`font-mono font-bold ${isEnded ? 'text-red-500' : 'text-blue-400'}`}>
-                            {isEnded ? "Ended" : formatTime(timeLeft)}
+                        <p className="text-muted-foreground text-xs">Final Price</p>
+                        <p className={`font-mono font-bold ${account.resolved ? 'text-gray-400' : 'text-muted-foreground/50'}`}>
+                            {account.resolved ?
+                                `$${(account.endPrice.toNumber() / 1e8).toFixed(2)}`
+                                :
+                                "-"
+                            }
                         </p>
                     </div>
                 </div>
@@ -369,7 +384,7 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                         {userBets.map(bet => (
                             <div key={bet.publicKey.toString()} className="flex justify-between items-center">
                                 <span>{(bet.account.amount.toNumber() / 1e9).toFixed(2)} SOL on {bet.account.direction ? "YES" : "NO"}</span>
-                                <span className={bet.account.claimed ? "text-green-500" : "text-yellow-500"}>
+                                <span className={bet.account.claimed ? "text-outcome-yes" : "text-yellow-500"}>
                                     {bet.account.claimed ? "Claimed" : "Unclaimed"}
                                 </span>
                             </div>
@@ -392,7 +407,7 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                         <Button onClick={() => placeBet(true)} disabled={isEnded} className="flex-1 bg-outcome-yes hover:bg-outcome-yes/80 text-white h-10 font-bold shadow-[0_0_10px_rgba(53,125,119,0.3)]">
                             YES
                         </Button>
-                        <Button onClick={() => placeBet(false)} disabled={isEnded} className="flex-1 bg-outcome-no hover:bg-outcome-no/80 text-white h-10 font-bold shadow-[0_0_10px_rgba(145,42,45,0.3)]">
+                        <Button onClick={() => placeBet(false)} disabled={isEnded} className="flex-1 bg-outcome-no hover:bg-outcome-no/80 text-white h-10 font-bold shadow-[0_0_10px_rgba(221,83,65,0.3)]">
                             NO
                         </Button>
                     </div>

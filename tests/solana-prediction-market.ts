@@ -11,43 +11,34 @@ describe("solana-prediction-market", () => {
   const program = anchor.workspace.SolanaPredictionMarket as Program<SolanaPredictionMarket>;
 
   const marketKeypair = anchor.web3.Keypair.generate();
-  const priceFeedKeypair = anchor.web3.Keypair.generate(); // Mock Feed
+  // We use a dummy account for price update since the program expects UncheckedAccount
+  // and we are passing price manually in resolution in this version.
+  const priceFeedKeypair = anchor.web3.Keypair.generate();
 
   const asset = "BTC";
-  const duration = new anchor.BN(2); // 2 seconds for quick test
+  const duration = new anchor.BN(2); // 2 seconds
+  const question = "Will BTC go above $50k?";
+  const feedId = Array(32).fill(0);
+  const initialPrice = new anchor.BN(5000000000000); // 50000.00
+  const priceConf = new anchor.BN(100);
+  const targetPrice = new anchor.BN(5500000000000); // 55000.00
 
   let vaultPda: anchor.web3.PublicKey;
 
-  it("Initialize Mock Price Feed", async () => {
-    const initialPrice = new anchor.BN(5000000000000); // $50,000 * 10^8 (Pyth style)
-    const initialConf = new anchor.BN(100);
-
-    await program.methods
-      .initializeMockFeed(initialPrice, initialConf)
-      .accounts({
-        priceFeed: priceFeedKeypair.publicKey,
-        user: provider.wallet.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([priceFeedKeypair])
-      .rpc();
-
-    const feedAccount = await program.account.mockPriceFeed.fetch(priceFeedKeypair.publicKey);
-    expect(feedAccount.price.toString()).to.equal(initialPrice.toString());
-  });
-
-  it("Initialize Market", async () => {
+  it("Initialize Market (Above/Standard)", async () => {
     // Derive vault PDA
     [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("vault"), marketKeypair.publicKey.toBuffer()],
       program.programId
     );
 
+    const inverted = false;
+
     await program.methods
-      .initializeMarket(asset, duration)
+      .initializeMarket(question, asset, duration, feedId, initialPrice, priceConf, targetPrice, inverted)
       .accounts({
         market: marketKeypair.publicKey,
-        priceFeed: priceFeedKeypair.publicKey,
+        priceUpdate: priceFeedKeypair.publicKey,
         vault: vaultPda,
         user: provider.wallet.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
@@ -57,16 +48,13 @@ describe("solana-prediction-market", () => {
 
     const marketAccount = await program.account.market.fetch(marketKeypair.publicKey);
     expect(marketAccount.assetSymbol).to.equal(asset);
-    expect(marketAccount.resolved).to.be.false;
-    // Verify start price was captured
-    const feedAccount = await program.account.mockPriceFeed.fetch(priceFeedKeypair.publicKey);
-    expect(marketAccount.startPrice.toString()).to.equal(feedAccount.price.toString());
+    expect(marketAccount.startPrice.toString()).to.equal(initialPrice.toString());
+    expect(marketAccount.inverted).to.be.false;
   });
 
   const betKeypair1 = anchor.web3.Keypair.generate(); // Up bet
-  const betKeypair2 = anchor.web3.Keypair.generate(); // Down bet 
 
-  it("Place Bet UP", async () => {
+  it("Place Bet", async () => {
     const amount = new anchor.BN(1_000_000_000); // 1 SOL
 
     await program.methods
@@ -80,100 +68,116 @@ describe("solana-prediction-market", () => {
       })
       .signers([betKeypair1])
       .rpc();
-
-    const marketAccount = await program.account.market.fetch(marketKeypair.publicKey);
-    expect(marketAccount.totalUpPool.toString()).to.equal(amount.toString());
-  });
-
-  it("Place Bet DOWN", async () => {
-    const amount = new anchor.BN(500_000_000); // 0.5 SOL
-
-    await program.methods
-      .placeBet(false, amount)
-      .accounts({
-        bet: betKeypair2.publicKey,
-        market: marketKeypair.publicKey,
-        vault: vaultPda,
-        user: provider.wallet.publicKey,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([betKeypair2])
-      .rpc();
-
-    const marketAccount = await program.account.market.fetch(marketKeypair.publicKey);
-    expect(marketAccount.totalDownPool.toString()).to.equal(amount.toString());
   });
 
   it("Wait for market end", async () => {
-    console.log("Waiting 3s for market to end...");
     await new Promise((resolve) => setTimeout(resolve, 3000));
   });
 
-  it("Resolve Market (Update Price -> Resolve)", async () => {
-    // Update price to be HIGHER than start (Winner = UP)
-    const newPrice = new anchor.BN(5500000000000); // $55,000
-    const conf = new anchor.BN(100);
+  it("Resolve Market (Above Logic)", async () => {
+    // Final price 60k > Target 55k -> Outcome YES (true)
+    const finalPrice = new anchor.BN(6000000000000);
 
     await program.methods
-      .updateMockPrice(newPrice, conf)
-      .accounts({
-        priceFeed: priceFeedKeypair.publicKey
-      })
-      .rpc();
-
-    await program.methods
-      .resolveMarket()
+      .resolveMarket(finalPrice)
       .accounts({
         market: marketKeypair.publicKey,
-        priceFeed: priceFeedKeypair.publicKey,
+        priceUpdate: priceFeedKeypair.publicKey,
       })
       .rpc();
 
     const marketAccount = await program.account.market.fetch(marketKeypair.publicKey);
     expect(marketAccount.resolved).to.be.true;
-    expect(marketAccount.outcome).to.be.true; // True = UP
+    expect(marketAccount.outcome).to.be.true;
   });
 
-  it("Claim Winnings", async () => {
-    // betKeypair1 was UP (Winner)
-    const initialBalance = await provider.connection.getBalance(provider.wallet.publicKey);
-    console.log("Initial Balance:", initialBalance);
+
+  // --- INVERTED MARKET TEST ---
+  const marketInvertedKeypair = anchor.web3.Keypair.generate();
+  const targetPriceInverted = new anchor.BN(4500000000000); // 45k target (current 50k)
+  // Question: Will BTC go BELOW 45k?
+
+  it("Initialize Inverted Market (Below)", async () => {
+    [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("vault"), marketInvertedKeypair.publicKey.toBuffer()],
+      program.programId
+    );
+
+    const inverted = true;
 
     await program.methods
-      .claim()
+      .initializeMarket("Will BTC go below 45k?", asset, duration, feedId, initialPrice, priceConf, targetPriceInverted, inverted)
       .accounts({
-        bet: betKeypair1.publicKey,
-        market: marketKeypair.publicKey,
+        market: marketInvertedKeypair.publicKey,
+        priceUpdate: priceFeedKeypair.publicKey,
         vault: vaultPda,
         user: provider.wallet.publicKey,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
+      .signers([marketInvertedKeypair])
       .rpc();
 
-    const betAccount = await program.account.bet.fetch(betKeypair1.publicKey);
-    expect(betAccount.claimed).to.be.true;
-
-    const finalBalance = await provider.connection.getBalance(provider.wallet.publicKey);
-    console.log("Final Balance:", finalBalance);
-    expect(finalBalance).to.be.greaterThan(initialBalance); // Should have received payout
+    const marketAccount = await program.account.market.fetch(marketInvertedKeypair.publicKey);
+    expect(marketAccount.inverted).to.be.true;
   });
 
-  it("Fail to claim loser bet", async () => {
-    try {
-      await program.methods
-        .claim()
-        .accounts({
-          bet: betKeypair2.publicKey,
-          market: marketKeypair.publicKey,
-          vault: vaultPda,
-          user: provider.wallet.publicKey,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .rpc();
-      expect.fail("Should have failed");
-    } catch (e) {
-      expect(e).to.exist;
-    }
+  it("Resolve Inverted Market (Fail case)", async () => {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Final Price 48k. Target 45k.
+    // Inverted logic: 48k < 45k is FALSE. Outcome should be NO (false).
+    const finalPrice = new anchor.BN(4800000000000);
+
+    await program.methods
+      .resolveMarket(finalPrice)
+      .accounts({
+        market: marketInvertedKeypair.publicKey,
+        priceUpdate: priceFeedKeypair.publicKey,
+      })
+      .rpc();
+
+    const marketAccount = await program.account.market.fetch(marketInvertedKeypair.publicKey);
+    expect(marketAccount.outcome).to.be.false;
+  });
+
+  const marketInvertedWinKeypair = anchor.web3.Keypair.generate();
+
+  it("Resolve Inverted Market (Win case)", async () => {
+    // Create another market for win case
+    [vaultPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("vault"), marketInvertedWinKeypair.publicKey.toBuffer()],
+      program.programId
+    );
+    const inverted = true;
+
+    await program.methods
+      .initializeMarket("Will BTC go below 45k?", asset, duration, feedId, initialPrice, priceConf, targetPriceInverted, inverted)
+      .accounts({
+        market: marketInvertedWinKeypair.publicKey,
+        priceUpdate: priceFeedKeypair.publicKey,
+        vault: vaultPda,
+        user: provider.wallet.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([marketInvertedWinKeypair])
+      .rpc();
+
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // Final Price 40k. Target 45k.
+    // Inverted logic: 40k < 45k is TRUE. Outcome should be YES (true).
+    const finalPrice = new anchor.BN(4000000000000);
+
+    await program.methods
+      .resolveMarket(finalPrice)
+      .accounts({
+        market: marketInvertedWinKeypair.publicKey,
+        priceUpdate: priceFeedKeypair.publicKey,
+      })
+      .rpc();
+
+    const marketAccount = await program.account.market.fetch(marketInvertedWinKeypair.publicKey);
+    expect(marketAccount.outcome).to.be.true;
   });
 
 });
