@@ -40,7 +40,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-border mt-20 py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>Built on Solana • Powered by decentralized prediction markets</p>
+          <p>© {new Date().getFullYear()} Rialo Pulse. Built with 🩷 by Rai & Rick.</p>
         </div>
       </footer>
     </div>
