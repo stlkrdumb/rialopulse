@@ -4,6 +4,8 @@ import { useMemo } from 'react';
 import { UnifiedWalletProvider } from '@jup-ag/wallet-adapter';
 import { createSolanaRpc } from '@solana/kit';
 
+import { ConnectionProvider } from '@solana/wallet-adapter-react';
+
 export default function SolanaProvider({ children }) {
     // Use devnet for development
     const endpoint = 'https://api.devnet.solana.com';
@@ -13,7 +15,7 @@ export default function SolanaProvider({ children }) {
 
     // Configure Jupiter Unified Wallet
     const walletConfig = {
-        autoConnect: false,
+        autoConnect: true,
         env: 'devnet',
         metadata: {
             name: 'Rialopulse',
@@ -35,11 +37,13 @@ export default function SolanaProvider({ children }) {
     };
 
     return (
-        <UnifiedWalletProvider
-            wallets={[]}
-            config={walletConfig}
-        >
-            {children}
-        </UnifiedWalletProvider>
+        <ConnectionProvider endpoint={endpoint}>
+            <UnifiedWalletProvider
+                wallets={[]}
+                config={walletConfig}
+            >
+                {children}
+            </UnifiedWalletProvider>
+        </ConnectionProvider>
     );
 }

@@ -37,6 +37,8 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-outcome-yes: var(--outcome-yes);
+  --color-outcome-no: var(--outcome-no);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -80,6 +82,12 @@
   --sidebar-accent-foreground: oklch(0.05 0 0);
   --sidebar-border: oklch(0.75 0.03 85);
   --sidebar-ring: oklch(0.8 0.08 175);
+  --outcome-yes: #357D77;
+  --outcome-no: #912A2D;
+  --outcome-yes: #357D77;
+  --outcome-no: #912A2D;
+  --custom-card-bg: oklch(1 0 0 / 0.8);
+  --custom-card-border: oklch(0.8 0.05 85);
 }
 
 .dark {
@@ -115,6 +123,10 @@
   --sidebar-accent-foreground: oklch(0.92 0.015 85);
   --sidebar-border: oklch(0.2 0 0);
   --sidebar-ring: oklch(0.8 0.08 175);
+  --sidebar-border: oklch(0.2 0 0);
+  --sidebar-ring: oklch(0.8 0.08 175);
+  --custom-card-bg: oklch(0 0 0 / 0.4);
+  --custom-card-border: #e8e3d5;
 }
 
 @layer base {
@@ -124,5 +136,35 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .bg-outcome-yes {
+    background-color: var(--outcome-yes) !important;
+  }
+
+  .bg-outcome-yes:hover {
+    background-color: color-mix(in srgb, var(--outcome-yes), black 20%) !important;
+  }
+
+  .bg-outcome-no {
+    background-color: var(--outcome-no) !important;
+  }
+
+  .bg-outcome-no:hover {
+    background-color: color-mix(in srgb, var(--outcome-no), black 20%) !important;
+  }
+
+  .bg-outcome-no:hover {
+    background-color: color-mix(in srgb, var(--outcome-no), black 20%) !important;
+  }
+
+  .bg-custom-card {
+    background-color: var(--custom-card-bg) !important;
+  }
+
+  .border-custom-card {
+    border-color: var(--custom-card-border) !important;
   }
 }

@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ThemeProvider from "@/components/providers/theme-provider";
 import SolanaProvider from "@/components/providers/solana-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,6 +28,7 @@ export default function RootLayout({ children }) {
         <ThemeProvider>
           <SolanaProvider>
             {children}
+            <Toaster />
           </SolanaProvider>
         </ThemeProvider>
       </body>

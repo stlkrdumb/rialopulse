@@ -1,0 +1,22 @@
+[toolchain]
+package_manager = "yarn"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.devnet]
+solana_prediction_market = "6kdWRDeTupf2DK3A8p1JRjh6adpFStzLZjBany25GY97"
+
+[programs.localnet]
+solana_prediction_market = "D8dLqpXX7jNwDrJrBpSE1FcPRjnuiKWB5JNT4qbsjV95"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.test.json -t 1000000 \"tests/**/*.ts\""

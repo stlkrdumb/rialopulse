@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Rialopulse - Solana Prediction Markets
+
+A decentralized prediction market platform built on Solana using Anchor and Next.js.
+
+## Prerequisites
+
+- [Rust & Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html)
+- [Solana CLI](https://docs.solana.com/cli/install-solana-cli-tools)
+- [Anchor](https://www.anchor-lang.com/docs/installation)
+- [Node.js & Yarn](https://yarnpkg.com/getting-started/install)
 
 ## Getting Started
 
-First, run the development server:
+### 1. Start the Local Solana Validator
+
+Open a terminal and run the local validator. This simulates the blockchain on your machine.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+solana-test-validator
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+*Keep this terminal running.*
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+### 2. Deploy the Smart Contract (Backend)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open a new terminal to build and deploy the Anchor program.
 
-## Learn More
+```bash
+cd solana-prediction-market
+anchor build
+anchor deploy
+```
 
-To learn more about Next.js, take a look at the following resources:
+**Note:** Ensure your `solana-test-validator` is running. `anchor deploy` will output the Program ID. It should match the one in `lib/idl/solana_prediction_market.json` (`D8dL...`).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Run the Frontend
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+In the project root (where `package.json` is):
 
-## Deploy on Vercel
+```bash
+# Install dependencies if you haven't
+npm install
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Run the development server
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000) to view the app.
+
+## Usage
+
+1.  **Connect Wallet**: Use Phantom or Solflare (set to **Localnet** or **Devnet** depending on where you are running).
+    - If running locally, ensure your wallet is connected to `http://127.0.0.1:8899`.
+    - You may need to airdrop funds to your wallet: `solana airdrop 10 <YOUR_WALLET_ADDRESS>`
+
+2.  **Create Market**:
+    - Go to the **Create Market** tab.
+    - Click **Init Mock Feed** (this initializes a mock price oracle).
+    - Enter Asset (e.g., BTC) and Duration (e.g., 60 seconds).
+    - Click **Create Market**.
+
+3.  **Bet & Resolve**:
+    - Go to **Browse Markets**.
+    - Click **Up** or **Down** to place a bet.
+    - Wait for the duration to expire.
+    - Click **Resolve (Dev Check)** to finalize the market using the mock oracle price.
