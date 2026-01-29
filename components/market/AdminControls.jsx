@@ -10,6 +10,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PYTH_FEED_IDS, hexToFeedId, getOrCreatePriceUpdateAccount, getCurrentPrice } from '@/utils/pyth';
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Calendar } from "@/components/ui/calendar";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 
 export default function AdminControls({ onMarketCreated }) {
     const { program } = useProgram();
@@ -19,22 +28,76 @@ export default function AdminControls({ onMarketCreated }) {
     const [asset, setAsset] = useState('BTC');
     const [targetPrice, setTargetPrice] = useState('90000'); // Default target
 
-    // Default end date to 24 hours from now
+    // Default end date to today (Start with current time)
     const getDefaultEndDate = () => {
-        const date = new Date();
-        date.setHours(date.getHours() + 24);
-        date.setMinutes(date.getMinutes() - date.getTimezoneOffset()); // Local time adjustment
-        return date.toISOString().slice(0, 16);
+        return new Date().toISOString();
     };
 
     const [endDate, setEndDate] = useState(getDefaultEndDate());
     const [loading, setLoading] = useState(false);
 
+    const [currentAssetPrice, setCurrentAssetPrice] = useState(null);
+    const [marketTrend, setMarketTrend] = useState('bullish'); // 'bullish' | 'bearish'
+
+    // Auto-update target price when asset changes
+    useEffect(() => {
+        const updateTargetPrice = async () => {
+            if (!asset) return;
+            const feedId = PYTH_FEED_IDS[asset];
+            if (!feedId) return;
+
+            try {
+                // Fetch current price
+                const priceData = await getCurrentPrice(feedId);
+                const currentPrice = priceData.price * Math.pow(10, priceData.expo);
+                setCurrentAssetPrice(currentPrice);
+
+                // Default to Bullish (+10%)
+                const autoTarget = currentPrice * 1.10;
+                setTargetPrice(autoTarget.toFixed(2));
+                setMarketTrend('bullish');
+            } catch (error) {
+                console.error("Failed to fetch price for auto-target:", error);
+            }
+        };
+
+        updateTargetPrice();
+    }, [asset]);
+
+    // Auto-detect trend when target price changes manually
+    useEffect(() => {
+        if (!currentAssetPrice || !targetPrice) return;
+        const target = parseFloat(targetPrice);
+        if (isNaN(target)) return;
+
+        if (target > currentAssetPrice) {
+            setMarketTrend('bullish');
+        } else if (target < currentAssetPrice) {
+            setMarketTrend('bearish');
+        }
+    }, [targetPrice, currentAssetPrice]);
+
     // Auto-update question when asset or target price changes
     useEffect(() => {
         const formattedPrice = Number(targetPrice).toLocaleString();
-        setQuestion(`Will ${asset} go above $${formattedPrice}?`);
-    }, [asset, targetPrice]);
+        const target = parseFloat(targetPrice);
+        const direction = (!currentAssetPrice || target > currentAssetPrice) ? "go above" : "go below";
+        setQuestion(`Will ${asset} ${direction} $${formattedPrice}?`);
+    }, [asset, targetPrice, currentAssetPrice]);
+
+    const setBullishStrategy = () => {
+        if (!currentAssetPrice) return;
+        const newTarget = currentAssetPrice * 1.10;
+        setTargetPrice(newTarget.toFixed(2));
+        setMarketTrend('bullish');
+    };
+
+    const setBearishStrategy = () => {
+        if (!currentAssetPrice) return;
+        const newTarget = currentAssetPrice * 0.90;
+        setTargetPrice(newTarget.toFixed(2));
+        setMarketTrend('bearish');
+    };
 
     const createMarket = async () => {
         if (!wallet.publicKey || !program) {
@@ -96,7 +159,9 @@ export default function AdminControls({ onMarketCreated }) {
 
             // 3. Prepare Target Price (ensure 8 decimals)
             // User input 90000 -> 90000 * 10^8
-            const targetPriceBn = new BN(targetPrice).mul(new BN(10).pow(new BN(8)));
+            // Remove commas and parse as float, then convert to integer
+            const targetPriceNum = Math.floor(parseFloat(targetPrice.replace(/,/g, '')));
+            const targetPriceBn = new BN(targetPriceNum).mul(new BN(10).pow(new BN(8)));
 
             console.log('Using price update account:', priceUpdateAccount.toString());
             console.log('Initial Price:', initialPrice.toString());
@@ -161,27 +226,108 @@ export default function AdminControls({ onMarketCreated }) {
                                 <SelectValue placeholder="Select Asset" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="BTC">BTC/USD</SelectItem>
-                                <SelectItem value="ETH">ETH/USD</SelectItem>
-                                <SelectItem value="SOL">SOL/USD</SelectItem>
+                                {Object.keys(PYTH_FEED_IDS).map((key) => (
+                                    <SelectItem key={key} value={key}>{key}/USD</SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="space-y-2">
-                        <Label>Target Price (USD)</Label>
+
+                    <div className="space-y-2 flex flex-col pt-1">
+                        <Label className="mb-2">Market End Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                        "w-full justify-start text-left font-normal hover:text-muted-foreground",
+                                        !endDate && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {endDate ? format(new Date(endDate), "PPP p") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    mode="single"
+                                    selected={new Date(endDate)}
+                                    disabled={(date) => date < new Date()}
+                                    onSelect={(date) => {
+                                        if (date) {
+                                            const current = new Date(endDate);
+                                            date.setHours(current.getHours());
+                                            date.setMinutes(current.getMinutes());
+                                            setEndDate(date.toISOString());
+                                        }
+                                    }}
+                                    initialFocus
+                                />
+                                <div className="p-3 border-t border-border">
+                                    <Label className="mb-2 block text-xs">Time</Label>
+                                    <Input
+                                        type="time"
+                                        value={endDate ? format(new Date(endDate), "HH:mm") : "00:00"}
+                                        onChange={(e) => {
+                                            const [hours, minutes] = e.target.value.split(':');
+                                            const newDate = new Date(endDate);
+                                            newDate.setHours(parseInt(hours));
+                                            newDate.setMinutes(parseInt(minutes));
+                                            setEndDate(newDate.toISOString());
+                                        }}
+                                    />
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label className="flex justify-between items-center">
+                        Target Price (USD)
+                        {currentAssetPrice && <span className="text-xs text-muted-foreground">Current: ${currentAssetPrice.toLocaleString()}</span>}
+                    </Label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">$</span>
                         <Input
-                            placeholder="e.g., 90000"
+                            placeholder="90000"
                             value={targetPrice}
                             onChange={(e) => setTargetPrice(e.target.value)}
+                            className="pl-7" // padding-left for the dollar sign
                         />
                     </div>
-                    <div className="col-span-2 space-y-2">
-                        <Label>Market End Date (Local Time)</Label>
-                        <Input
-                            type="datetime-local"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                        />
+
+                    <div className="flex gap-2 mt-1">
+                        {(() => {
+                            let percentDiff = 10.0;
+                            if (currentAssetPrice && targetPrice && !isNaN(parseFloat(targetPrice))) {
+                                const target = parseFloat(targetPrice);
+                                percentDiff = ((target - currentAssetPrice) / currentAssetPrice) * 100;
+                            }
+
+                            return (
+                                <>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={setBullishStrategy}
+                                        className={`flex-1 h-7 text-xs font-bold ${marketTrend === 'bullish' ? 'bg-outcome-yes/20 text-outcome-yes border-outcome-yes hover:bg-outcome-yes/30 hover:text-outcome-yes' : 'text-muted-foreground hover:text-muted-foreground'}`}
+                                    >
+                                        📈 BULLISH {marketTrend === 'bullish' ? `(+${Math.abs(percentDiff).toFixed(1)}%)` : '(+10%)'}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={setBearishStrategy}
+                                        className={`flex-1 h-7 text-xs font-bold ${marketTrend === 'bearish' ? 'bg-outcome-no/20 text-outcome-no border-outcome-no hover:bg-outcome-no/30 hover:text-outcome-no' : 'text-muted-foreground hover:text-muted-foreground'}`}
+                                    >
+                                        📉 BEARISH {marketTrend === 'bearish' ? `(-${Math.abs(percentDiff).toFixed(1)}%)` : '(-10%)'}
+                                    </Button>
+                                </>
+                            )
+                        })()}
                     </div>
                 </div>
 

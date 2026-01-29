@@ -29,7 +29,7 @@ export default function Home() {
           </TabsContent>
 
           <TabsContent value="create">
-            <div className="max-w-xl mx-auto">
+            <div className="max-w-2xl mx-auto">
               <AdminControls onMarketCreated={() => window.location.reload()} />
               {/* Simple reload to refresh for now, ideally use context or swr */}
             </div>
