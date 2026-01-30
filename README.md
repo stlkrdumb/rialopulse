@@ -1,66 +1,129 @@
 # Rialopulse - Solana Prediction Markets
 
-A decentralized prediction market platform built on Solana using Anchor and Next.js.
+Rialopulse is a decentralized prediction market platform built on the Solana blockchain. Users can predict the price movement of assets (like BTC/USD) within a specified timeframe and win rewards for correct predictions.
+
+Built with **Anchor** framework for the smart contracts and **Next.js** for the frontend interface.
+
+## Features
+
+- **Binary Options**: Simple "Up" or "Down" betting mechanism.
+- **Oracle Integration**: Uses Pyth Network price feeds for accurate asset pricing (supports simulated/mock feeds for local development).
+- **Automated Resolution**: Markets are resolved based on the final price relative to the strike price.
+- **Non-Custodial**: Funds are held in a secure program vault until resolution.
+- **Inverted Markets**: Supports "Below" target betting logic.
 
 ## Prerequisites
 
-- [Rust & Cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html)
+Ensure you have the following installed on your machine:
+
+- [Rust](https://www.rust-lang.org/tools/install)
 - [Solana CLI](https://docs.solana.com/cli/install-solana-cli-tools)
 - [Anchor](https://www.anchor-lang.com/docs/installation)
-- [Node.js & Yarn](https://yarnpkg.com/getting-started/install)
+- [Node.js](https://nodejs.org/en/download/) (v18+ recommended)
+- [Yarn](https://yarnpkg.com/getting-started/install)
 
 ## Getting Started
 
-### 1. Start the Local Solana Validator
+Follow these steps to set up the project locally.
 
-Open a terminal and run the local validator. This simulates the blockchain on your machine.
-
-```bash
-solana-test-validator
-```
-
-*Keep this terminal running.*
-
-### 2. Deploy the Smart Contract (Backend)
-
-Open a new terminal to build and deploy the Anchor program.
+### 1. Clone the Repository
 
 ```bash
-cd solana-prediction-market
-anchor build
-anchor deploy
+git clone <repository-url>
+cd rialopulse
 ```
 
-**Note:** Ensure your `solana-test-validator` is running. `anchor deploy` will output the Program ID. It should match the one in `lib/idl/solana_prediction_market.json` (`D8dL...`).
+### 2. Smart Contract Setup (Backend)
 
-### 3. Run the Frontend
+1.  **Start Local Validator**:
+    Open a new terminal and run:
 
-In the project root (where `package.json` is):
+    ```bash
+    solana-test-validator
+    ```
+
+    _Keep this terminal running._
+
+2.  **Build and Deploy**:
+    Open a second terminal in the project root:
+
+    ```bash
+    anchor build
+
+    # Get your program ID
+    solana address -k target/deploy/solana_prediction_market.json
+    ```
+
+    _Note: Update `lib.rs` and `Anchor.toml` if your generated Program ID differs from the one in the code (`a1fq...` or `D8dL...`)._
+
+    ```bash
+    anchor deploy
+    ```
+
+### 3. Frontend Setup
+
+1.  **Install Dependencies**:
+
+    ```bash
+    npm install
+    # or
+    yarn install
+    ```
+
+2.  **Run Development Server**:
+
+    ```bash
+    npm run dev
+    # or
+    yarn dev
+    ```
+
+3.  **Access the App**:
+    Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Usage Guide
+
+### 1. Connect Wallet
+
+- Click **Connect Wallet** in the top right.
+- Use a wallet like **Phantom** or **Solflare**.
+- Ensure your wallet is connected to **Localnet** (or Devnet if deployed there).
+- **Airdrop Funds**:
+  ```bash
+  solana airdrop 10 <YOUR_WALLET_ADDRESS> --url localhost
+  ```
+
+### 2. Create a Market (Admin)
+
+- Navigate to the **Create Market** tab.
+- **Init Mock Feed**: Click this to initialize a mock price feed (required for local testing without live Pyth feeds).
+- **Details**: Enter the Asset (e.g., BTC), Duration (seconds), and current price.
+- **Create**: Confirm the transaction to initialize the market on-chain.
+
+### 3. Place a Bet
+
+- Go to **Browse Markets**.
+- Select a market and choose **Up** (Long) or **Down** (Short).
+- Enter the amount of SOL to wager.
+- Confirm the transaction.
+
+### 4. Resolve Market
+
+- Once the duration expires, the market needs to be resolved.
+- In a production environment, this would be automated by a keeper.
+- For testing, click **Resolve (Dev Check)** on the market card to manually trigger resolution using the mock oracle price.
+
+## Project Structure
+
+- `programs/`: Solana smart contracts (Rust/Anchor).
+- `app/`: Frontend application (Next.js, React, Tailwind).
+- `tests/`: Integration tests for the smart contracts.
+- `migrations/`: Deploy scripts.
+
+## Testing
+
+Run the integration tests to verify smart contract logic:
 
 ```bash
-# Install dependencies if you haven't
-npm install
-
-# Run the development server
-npm run dev
+anchor test
 ```
-
-Open [http://localhost:3000](http://localhost:3000) to view the app.
-
-## Usage
-
-1.  **Connect Wallet**: Use Phantom or Solflare (set to **Localnet** or **Devnet** depending on where you are running).
-    - If running locally, ensure your wallet is connected to `http://127.0.0.1:8899`.
-    - You may need to airdrop funds to your wallet: `solana airdrop 10 <YOUR_WALLET_ADDRESS>`
-
-2.  **Create Market**:
-    - Go to the **Create Market** tab.
-    - Click **Init Mock Feed** (this initializes a mock price oracle).
-    - Enter Asset (e.g., BTC) and Duration (e.g., 60 seconds).
-    - Click **Create Market**.
-
-3.  **Bet & Resolve**:
-    - Go to **Browse Markets**.
-    - Click **Up** or **Down** to place a bet.
-    - Wait for the duration to expire.
-    - Click **Resolve (Dev Check)** to finalize the market using the mock oracle price.
