@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PYTH_FEED_IDS, hexToFeedId, getOrCreatePriceUpdateAccount, getCurrentPrice } from '@/utils/pyth';
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -339,7 +339,14 @@ export default function AdminControls({ onMarketCreated }) {
                     disabled={loading || !wallet.publicKey}
                     className="w-full"
                 >
-                    {loading ? "Creating Market..." : "Create Market"}
+                    {loading ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Creating Market...
+                        </>
+                    ) : (
+                        "Create Market"
+                    )}
                 </Button>
 
                 <div className="text-sm text-muted-foreground space-y-1">

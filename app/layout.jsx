@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Rialopulse | Solana Prediction Markets",
+  title: "Rialopulse | Prediction Markets",
   description: "Decentralized prediction market platform built on Solana",
 };
 

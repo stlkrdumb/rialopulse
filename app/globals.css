@@ -85,7 +85,7 @@
   --sidebar-border: oklch(0.75 0.03 85);
   --sidebar-ring: oklch(0.85 0.06 175);
   /* Custom outcome colors */
-  --outcome-yes: #4DB6AC;
+  --outcome-yes: #a9ddd3;
   --outcome-no: #DD5341;
   --custom-card-bg: oklch(1 0 0 / 0.8);
   --custom-card-border: oklch(0.8 0.05 85);
@@ -181,5 +181,23 @@
 
   .border-custom-card {
     border-color: var(--custom-card-border) !important;
+  }
+
+  .you-won {
+    color: var(--outcome-yes) !important;
+    @apply border-outcome-yes border-2 rounded-lg;
+  }
+
+  .you-lost {
+    color: var(--outcome-no) !important;
+    @apply border-outcome-no border-2 rounded-lg;
+  }
+
+  .yes-progress-bar {
+    @apply text-outcome-yes;
+  }
+
+  .no-progress-bar {
+    @apply text-outcome-no;
   }
 }

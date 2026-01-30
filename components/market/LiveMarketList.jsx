@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useProgram } from '@/hooks/useProgram';
 import { toast } from "sonner";
@@ -16,6 +17,8 @@ export default function LiveMarketList() {
     const [userBets, setUserBets] = useState([]);
     const [markets, setMarkets] = useState([]);
     const [activeTab, setActiveTab] = useState('active'); // 'active' | 'past'
+    const [historyFilter, setHistoryFilter] = useState('all'); // 'all', 'participated', 'won', 'lost'
+    const [searchQuery, setSearchQuery] = useState('');
 
     const fetchMarkets = async () => {
         try {
@@ -32,8 +35,11 @@ export default function LiveMarketList() {
                 allMarkets = [];
             }
 
+
+
             // Sort by creation time (assuming order matches fetch order or public key for now)
             // Ideally should sort by start_time if available
+            // allMarkets.sort((a, b) => b.account.startTime.toNumber() - a.account.startTime.toNumber()); // If startTime existed
             setMarkets(allMarkets);
         } catch (e) {
             console.error("Failed to fetch markets", e);
@@ -72,8 +78,40 @@ export default function LiveMarketList() {
     // Filter markets based on activeTab
     const filteredMarkets = markets.filter(m => {
         if (activeTab === 'active') return !m.account.resolved;
-        if (activeTab === 'past') return m.account.resolved;
+
+        // History Logic
+        if (activeTab === 'past') {
+            if (!m.account.resolved) return false;
+
+            // Search Filter
+            if (searchQuery && !m.account.question.toLowerCase().includes(searchQuery.toLowerCase())) {
+                return false;
+            }
+
+            // Type Filter
+            if (historyFilter === 'all') return true;
+
+            const marketBets = userBets.filter(b => b.account.market.toString() === m.publicKey.toString());
+            const hasParticipated = marketBets.length > 0;
+
+            if (historyFilter === 'participated') return hasParticipated;
+
+            if (historyFilter === 'won') {
+                return marketBets.some(b => b.account.direction === m.account.outcome);
+            }
+
+            if (historyFilter === 'lost') {
+                // Participated but didn't win
+                return hasParticipated && !marketBets.some(b => b.account.direction === m.account.outcome);
+            }
+        }
         return true;
+    }).sort((a, b) => {
+        // Sort by end time descending (latest first) for history
+        if (activeTab === 'past') {
+            return b.account.endTime.toNumber() - a.account.endTime.toNumber();
+        }
+        return 0;
     });
 
     return (
@@ -83,20 +121,52 @@ export default function LiveMarketList() {
                     onClick={() => setActiveTab('active')}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'active' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-white'}`}
                 >
-                    Active Markets
+                    Active
                 </button>
                 <button
                     onClick={() => setActiveTab('past')}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'past' ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-white'}`}
                 >
-                    Past Markets
+                    History
                 </button>
             </div>
+
+            {/* History Filters Toolbar */}
+            {activeTab === 'past' && (
+                <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-black/20 p-4 rounded-lg border border-white/5">
+                    <div className="w-full sm:w-auto flex items-center gap-2">
+                        <div className="relative w-full sm:w-64">
+                            <input
+                                type="text"
+                                placeholder="Search markets..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full bg-secondary/50 border border-white/10 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-primary/50"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0">
+                        {['all', 'participated', 'won', 'lost'].map((filter) => (
+                            <button
+                                key={filter}
+                                onClick={() => setHistoryFilter(filter)}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-colors whitespace-nowrap ${historyFilter === filter
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-white'
+                                    }`}
+                            >
+                                {filter}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 xl:grid-cols-3 md:grid-cols-2 gap-4">
                 {filteredMarkets.length === 0 && (
                     <p className="text-gray-500 col-span-full text-center py-10">
-                        {activeTab === 'active' ? "No active markets found." : "No past markets found."}
+                        {activeTab === 'active' ? "No active markets found." : "No past markets found matching your filters."}
                     </p>
                 )}
                 {filteredMarkets.map((m) => (
@@ -117,12 +187,16 @@ export default function LiveMarketList() {
 function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
     const { program } = useProgram();
     const [amount, setAmount] = useState('0.1');
+    const [bettingSide, setBettingSide] = useState(null); // null | true (YES) | false (NO)
+    const [isResolving, setIsResolving] = useState(false);
+    const [isClaiming, setIsClaiming] = useState(false);
 
     const placeBet = async (direction) => {
         if (!wallet.publicKey) {
             toast.error("Please connect your wallet first!");
             return;
         }
+        setBettingSide(direction);
         const betKeypair = web3.Keypair.generate();
         const vaultPda = PublicKey.findProgramAddressSync(
             [Buffer.from("vault"), publicKey.toBuffer()],
@@ -146,6 +220,8 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
             toast.error("Bet Failed", {
                 description: e.message || e.toString()
             });
+        } finally {
+            setBettingSide(null);
         }
     };
 
@@ -186,6 +262,7 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
 
     const resolve = async () => {
         if (!wallet.publicKey || !program) return;
+        setIsResolving(true);
         try {
             // Get feed ID hex from market account
             const feedIdHex = feedIdToHex(account.feedId);
@@ -222,11 +299,14 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
             toast.error("Resolve Failed", {
                 description: e.message || e.toString()
             });
+        } finally {
+            setIsResolving(false);
         }
     };
 
     const claim = async (betPublicKey) => {
         if (!wallet.publicKey || !program) return;
+        setIsClaiming(true);
 
         try {
             const vaultPda = PublicKey.findProgramAddressSync(
@@ -252,6 +332,8 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
             toast.error("Claim Failed", {
                 description: e.message || e.toString()
             });
+        } finally {
+            setIsClaiming(false);
         }
     }
 
@@ -281,7 +363,7 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
     })();
 
     return (
-        <Card className={`relative overflow-hidden bg-custom-card border-custom-card border hover:border-primary/50 transition-colors backdrop-blur-sm ${userResult === 'WON' ? 'border-outcome-yes/50 shadow-[0_0_15px_rgba(53,125,119,0.2)]' : ''}`}>
+        <Card className={`relative overflow-hidden bg-custom-card border-custom-card border hover:border-primary/50 transition-colors backdrop-blur-sm ${userResult === 'WON' ? 'border-outcome-yes/50 shadow-[0_0_15px_rgba(169,221,211,0.2)]' : ''}`}>
 
             {/* Status Stamp Overlay */}
             {userResult && (
@@ -289,17 +371,17 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                     <div className={`
                          transform rotate-12 border-4 rounded-lg px-2 py-1 font-black text-2xl tracking-widest opacity-80
                          ${userResult === 'WON'
-                            ? 'border-outcome-yes text-outcome-yes shadow-[0_0_10px_rgba(53,125,119,0.5)] bg-outcome-yes/10'
-                            : 'border-outcome-no text-outcome-no shadow-[0_0_10px_rgba(221,83,65,0.5)] bg-outcome-no/10'}
+                            ? 'you-won shadow-[0_0_10px_rgba(169,221,211,0.5)] bg-outcome-yes/10'
+                            : 'you-lost shadow-[0_0_10px_rgba(221,83,65,0.5)] bg-outcome-no/10'}
                      `}>
                         {userResult === 'WON' ? 'YOU WON' : 'YOU LOST'}
                     </div>
                 </div>
             )}
 
-            <CardHeader className="pb-3 border-b border-white/5">
+            <CardHeader className="pb-6 border-b border-white/5">
                 <div className="space-y-1">
-                    <CardTitle className="text-base">{account.question}</CardTitle>
+                    <CardTitle className="text-base mb-2">{account.question}</CardTitle>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span className="text-xs text-muted-foreground px-0 py-0.5 rounded">{account.assetSymbol}/USD</span>
                         <span className={`px-2 py-0.5 rounded font-bold ${account.resolved ? "bg-gray-800 text-gray-400" : "bg-outcome-yes/20 text-outcome-yes"}`}>
@@ -311,7 +393,7 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
             <CardContent>
                 <div className="grid grid-cols-3 gap-2 mb-4 text-sm">
                     <div>
-                        <p className="text-muted-foreground text-xs">Start Price</p>
+                        <p className="text-muted-foreground text-xs">Entry Price</p>
                         <p className="font-mono font-bold">${(account.startPrice.toNumber() / 1e8).toFixed(2)}</p>
                     </div>
                     <div className="text-center">
@@ -348,9 +430,9 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                     </div>
 
                     {/* Progress Bars */}
-                    <div className="space-y-3">
+                    <div className="space-y-3 yes-no-progress-bars">
                         {/* YES Bar */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 yes-progress-bar">
                             <div className="flex justify-between text-xs font-bold">
                                 <span className="text-outcome-yes">YES</span>
                                 <span className="text-outcome-yes">{(account.totalUpPool.toNumber() / 1e9).toFixed(2)} SOL ({((account.totalUpPool.toNumber() / (account.totalUpPool.toNumber() + account.totalDownPool.toNumber() || 1)) * 100).toFixed(0)}%)</span>
@@ -363,7 +445,7 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                         </div>
 
                         {/* NO Bar */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 no-progress-bar">
                             <div className="flex justify-between text-xs font-bold">
                                 <span className="text-outcome-no">NO</span>
                                 <span className="text-outcome-no">{(account.totalDownPool.toNumber() / 1e9).toFixed(2)} SOL ({((account.totalDownPool.toNumber() / (account.totalUpPool.toNumber() + account.totalDownPool.toNumber() || 1)) * 100).toFixed(0)}%)</span>
@@ -381,14 +463,48 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                 {userBets.length > 0 && (
                     <div className="mb-4 p-2 bg-secondary/20 rounded text-xs space-y-1">
                         <p className="font-semibold text-muted-foreground">Your Bets:</p>
-                        {userBets.map(bet => (
-                            <div key={bet.publicKey.toString()} className="flex justify-between items-center">
-                                <span>{(bet.account.amount.toNumber() / 1e9).toFixed(2)} SOL on {bet.account.direction ? "YES" : "NO"}</span>
-                                <span className={bet.account.claimed ? "text-outcome-yes" : "text-yellow-500"}>
-                                    {bet.account.claimed ? "Claimed" : "Unclaimed"}
-                                </span>
-                            </div>
-                        ))}
+                        {userBets.map(bet => {
+                            let statusText = "Live";
+                            let statusClass = "text-blue-400";
+
+                            if (account.resolved) {
+                                const isWinner = bet.account.direction === account.outcome;
+                                if (isWinner) {
+                                    if (bet.account.claimed) {
+                                        const totalPool = account.totalUpPool.toNumber() + account.totalDownPool.toNumber();
+                                        const winnerPool = account.outcome ? account.totalUpPool.toNumber() : account.totalDownPool.toNumber();
+                                        const userBetAmount = bet.account.amount.toNumber();
+
+                                        // Safety check for division by zero
+                                        if (winnerPool > 0) {
+                                            const fee = totalPool * 0.02;
+                                            const netPool = totalPool - fee;
+                                            const share = userBetAmount / winnerPool;
+                                            const payout = share * netPool;
+                                            statusText = `Claimed: ${(payout / 1e9).toFixed(4)} SOL`;
+                                        } else {
+                                            statusText = "Claimed";
+                                        }
+                                        statusClass = "text-outcome-yes";
+                                    } else {
+                                        statusText = "Won (Unclaimed)";
+                                        statusClass = "text-outcome-yes font-bold";
+                                    }
+                                } else {
+                                    statusText = "Lost";
+                                    statusClass = "text-outcome-no";
+                                }
+                            }
+
+                            return (
+                                <div key={bet.publicKey.toString()} className="flex justify-between items-center text-sm">
+                                    <span>{(bet.account.amount.toNumber() / 1e9).toFixed(2)} SOL on {bet.account.direction ? "YES" : "NO"}</span>
+                                    <span className={statusClass}>
+                                        {statusText}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -404,11 +520,11 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                                 disabled={isEnded}
                             />
                         </div>
-                        <Button onClick={() => placeBet(true)} disabled={isEnded} className="flex-1 bg-outcome-yes hover:bg-outcome-yes/80 text-white h-10 font-bold shadow-[0_0_10px_rgba(53,125,119,0.3)]">
-                            YES
+                        <Button onClick={() => placeBet(true)} disabled={isEnded || bettingSide !== null} className="flex-1 bg-outcome-yes hover:bg-outcome-yes/80 text-gray-900 h-10 font-bold shadow-[0_0_10px_rgba(53,125,119,0.3)]">
+                            {bettingSide === true ? <Loader2 className="w-4 h-4 animate-spin" /> : "YES"}
                         </Button>
-                        <Button onClick={() => placeBet(false)} disabled={isEnded} className="flex-1 bg-outcome-no hover:bg-outcome-no/80 text-white h-10 font-bold shadow-[0_0_10px_rgba(221,83,65,0.3)]">
-                            NO
+                        <Button onClick={() => placeBet(false)} disabled={isEnded || bettingSide !== null} className="flex-1 bg-outcome-no hover:bg-outcome-no/80 text-white h-10 font-bold shadow-[0_0_10px_rgba(221,83,65,0.3)]">
+                            {bettingSide === false ? <Loader2 className="w-4 h-4 animate-spin" /> : "NO"}
                         </Button>
                     </div>
                 )}
@@ -437,10 +553,11 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                                         (Your Share: {(share * 100).toFixed(1)}% of Net Pool)
                                     </p>
                                     <Button
-                                        className="w-full bg-outcome-yes hover:bg-outcome-yes/80 text-white font-bold animate-pulse shadow-[0_0_15px_rgba(53,125,119,0.5)]"
+                                        className="w-full bg-outcome-yes hover:bg-outcome-yes/80 text-gray-900 font-bold animate-pulse shadow-[0_0_15px_rgba(169,221,211,0.5)]"
                                         onClick={() => claim(bet.publicKey)}
+                                        disabled={isClaiming}
                                     >
-                                        🎉 Claim Winnings
+                                        {isClaiming ? <Loader2 className="w-4 h-4 animate-spin" /> : "🎉 Claim Winnings"}
                                     </Button>
                                     {winningBets.length > 1 && <p className="text-xs text-center text-muted-foreground mt-1">Found {winningBets.length} winning bets. Claim one by one.</p>}
                                 </div>
@@ -455,10 +572,17 @@ function MarketCard({ account, publicKey, connection, wallet, userBets = [] }) {
                             variant={isEnded ? "default" : "ghost"}
                             size="sm"
                             onClick={resolve}
-                            disabled={!isEnded}
+                            disabled={!isEnded || isResolving}
                             className={`w-full text-xs ${isEnded ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'text-muted-foreground'}`}
                         >
-                            {isEnded ? "⚡ Resolve Market Now" : "Resolve (Wait for End)"}
+                            {isResolving ? (
+                                <div className="flex items-center justify-center gap-2">
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                    Resolving...
+                                </div>
+                            ) : (
+                                isEnded ? "⚡ Resolve Market Now" : "⏰ Resolve (Wait for End)"
+                            )}
                         </Button>
                     </div>
                 )}

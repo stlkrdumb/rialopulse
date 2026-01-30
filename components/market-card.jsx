@@ -35,14 +35,14 @@ export default function MarketCard({ market }) {
                             key={idx}
                             onClick={() => setSelectedOption(idx)}
                             className={`w-full p-4 rounded-lg border-2 transition-all ${isSelected
-                                    ? 'border-primary bg-primary/10'
-                                    : 'border-border hover:border-primary/50 bg-card'
+                                ? 'border-primary bg-primary/10'
+                                : 'border-border hover:border-primary/50 bg-card'
                                 }`}
                         >
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                     {option.trend === 'up' ? (
-                                        <TrendingUp className="w-4 h-4 text-green-500" />
+                                        <TrendingUp className="w-4 h-4 text-outcome-yes" />
                                     ) : (
                                         <TrendingDown className="w-4 h-4 text-red-500" />
                                     )}
